@@ -3,9 +3,12 @@ import com.vanniktech.maven.publish.JavadocJar
 import com.vanniktech.maven.publish.KotlinMultiplatform
 import com.vanniktech.maven.publish.MavenPublishBaseExtension
 import kotlinx.validation.ApiValidationExtension
+import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
+import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTargetWithTests
 import org.jetbrains.kotlin.gradle.plugin.mpp.NativeBuildType
 import org.jetbrains.kotlin.gradle.plugin.mpp.TestExecutable
+import org.jetbrains.kotlin.gradle.targets.jvm.KotlinJvmTarget
 
 plugins {
   kotlin("multiplatform")
@@ -54,6 +57,48 @@ plugins {
 kotlin {
   configureOrCreateOkioPlatforms()
 
+  @OptIn(ExperimentalKotlinGradlePluginApi::class)
+  applyDefaultHierarchyTemplate {
+    group("common") {
+      group("unix") {
+        group("linux")
+        group("apple")
+      }
+      group("wasm") {
+        withWasmJs()
+        withWasmWasi()
+      }
+
+      group("systemFileSystem") {
+        withJvm()
+        group("native")
+      }
+      group("zlib") {
+        withJvm()
+        group("native")
+      }
+
+      group("nonApple") {
+        withCompilations {
+          (it.target as? KotlinNativeTarget)?.konanTarget?.family?.isAppleFamily != true
+        }
+      }
+      group("nonJvm") {
+        withCompilations { it.target !is KotlinJvmTarget }
+      }
+      group("nonJs") {
+        withCompilations { it.target.platformType.name != "js" }
+      }
+      group("nonWasm") {
+        withCompilations { it.target.platformType.name != "wasm" }
+      }
+
+      group("hashFunctions") {
+        group("nonJvm")
+      }
+    }
+  }
+
   sourceSets {
     all {
       languageSettings.apply {
@@ -77,124 +122,26 @@ kotlin {
       }
     }
 
-    val hashFunctions by creating {
-      dependsOn(commonMain)
-    }
-
-    val nonAppleMain by creating {
-      dependsOn(hashFunctions)
-    }
-
-    val nonWasmTest by creating {
-      dependsOn(commonTest)
+    val nonWasmTest by getting {
       dependencies {
         implementation(libs.kotlin.time)
         implementation(projects.okioFakefilesystem)
       }
     }
 
-    val nonJvmMain by creating {
-      dependsOn(hashFunctions)
-      dependsOn(commonMain)
-    }
-
-    val nonJsMain by creating {
-      dependsOn(commonMain)
-    }
-
-    val systemFileSystemMain by creating {
-      dependsOn(commonMain)
-    }
-
-    val nonJvmTest by creating {
-      dependsOn(commonTest)
-    }
-
-    val zlibMain by creating {
-      dependsOn(commonMain)
-    }
-
-    val zlibTest by creating {
-      dependsOn(commonTest)
+    val zlibTest by getting {
       dependencies {
         implementation(libs.test.assertk)
       }
     }
 
-    val jvmMain by getting {
-      dependsOn(zlibMain)
-      dependsOn(systemFileSystemMain)
-      dependsOn(nonJsMain)
-    }
     val jvmTest by getting {
       kotlin.srcDir("src/hashFunctions")
-      dependsOn(nonWasmTest)
-      dependsOn(zlibTest)
       dependencies {
         implementation(libs.test.junit)
         implementation(libs.test.assertj)
         implementation(libs.test.jimfs)
       }
-    }
-
-    if (kmpJsEnabled) {
-      val jsMain by getting {
-        dependsOn(nonJvmMain)
-        dependsOn(nonAppleMain)
-      }
-      val jsTest by getting {
-        dependsOn(nonWasmTest)
-        dependsOn(nonJvmTest)
-      }
-    }
-
-    if (kmpNativeEnabled) {
-      createSourceSet("nativeMain", parent = nonJvmMain)
-        .also { nativeMain ->
-          nativeMain.dependsOn(zlibMain)
-          nativeMain.dependsOn(systemFileSystemMain)
-          createSourceSet(
-              "mingwMain",
-              parent = nativeMain,
-              children = mingwTargets,
-          ).also { mingwMain ->
-            mingwMain.dependsOn(nonAppleMain)
-            mingwMain.dependsOn(nonJsMain)
-          }
-          createSourceSet("unixMain", parent = nativeMain)
-            .also { unixMain ->
-              unixMain.dependsOn(nonJsMain)
-              createSourceSet(
-                  "linuxMain",
-                  parent = unixMain,
-                  children = linuxTargets,
-              ).also { linuxMain ->
-                linuxMain.dependsOn(nonAppleMain)
-              }
-              createSourceSet("appleMain", parent = unixMain, children = appleTargets)
-            }
-        }
-
-      createSourceSet("nativeTest", parent = commonTest, children = mingwTargets + linuxTargets)
-        .also { nativeTest ->
-          nativeTest.dependsOn(nonJvmTest)
-          nativeTest.dependsOn(nonWasmTest)
-          nativeTest.dependsOn(zlibTest)
-          createSourceSet("appleTest", parent = nativeTest, children = appleTargets)
-        }
-    }
-
-    if (kmpWasmEnabled) {
-      createSourceSet("wasmMain", parent = commonMain, children = wasmTargets)
-        .also { wasmMain ->
-          wasmMain.dependsOn(nonJsMain)
-          wasmMain.dependsOn(nonJvmMain)
-          wasmMain.dependsOn(nonAppleMain)
-        }
-      createSourceSet("wasmTest", parent = commonTest, children = wasmTargets)
-        .also { wasmTest ->
-          wasmTest.dependsOn(nonJvmTest)
-        }
     }
   }
 
