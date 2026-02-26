@@ -21,6 +21,7 @@ package okio
 
 import kotlin.jvm.JvmMultifileClass
 import kotlin.jvm.JvmName
+import okio.internal.CRC32
 
 /**
  * Returns a new read-only file system.
@@ -33,3 +34,21 @@ import kotlin.jvm.JvmName
  */
 @Throws(IOException::class)
 fun FileSystem.openZip(zipPath: Path): FileSystem = okio.internal.openZip(zipPath, this)
+
+/**
+ * Returns the 32-bit CRC-32 checksum of this buffer.
+ *
+ * The checksum is returned as a Long to represent the unsigned 32-bit value.
+ */
+fun Buffer.crc32(): Long {
+  val crc32 = CRC32()
+  head?.let { head ->
+    crc32.update(head.data, head.pos, head.limit - head.pos)
+    var s = head.next!!
+    while (s !== head) {
+      crc32.update(s.data, s.pos, s.limit - s.pos)
+      s = s.next!!
+    }
+  }
+  return crc32.getValue()
+}
