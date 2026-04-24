@@ -17,6 +17,7 @@ package okio
 
 import kotlinx.cinterop.UnsafeNumber
 import kotlinx.cinterop.alloc
+import kotlinx.cinterop.convert
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import okio.internal.linux.AT_FDCWD
