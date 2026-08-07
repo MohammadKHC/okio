@@ -44,33 +44,35 @@ import platform.posix.syscall
 @OptIn(UnsafeNumber::class)
 internal actual fun PosixFileSystem.variantMetadataOrNull(path: Path): FileMetadata? {
   memScoped {
-    val statx = alloc<statx>()
-    val result = syscall(
-      __NR_statx.convert(),
-      AT_FDCWD,
-      path.toString(),
-      AT_SYMLINK_NOFOLLOW,
-      STATX_BASIC_STATS or STATX_BTIME,
-      statx.ptr,
-    ).convert<Int>()
-    if (result == 0) {
-      return FileMetadata(
-        isRegularFile = statx.stx_mode.toInt() and S_IFMT == S_IFREG,
-        isDirectory = statx.stx_mode.toInt() and S_IFMT == S_IFDIR,
-        symlinkTarget = symlinkTarget(statx.stx_mode.toInt(), path),
-        size = statx.stx_size.toLong(),
-        createdAtMillis = when {
-          statx.stx_mask and STATX_BTIME != 0U -> statx.stx_btime.epochMillis
-          else -> statx.stx_mtime.epochMillis
-        },
-        lastModifiedAtMillis = statx.stx_mtime.epochMillis,
-        lastAccessedAtMillis = statx.stx_atime.epochMillis,
-      )
-    }
+    val androidApiLevel = getAndroidDeviceApiLevel()
 
-    // Recover if statx() isn't available. It first appeared in Linux in 4.11 (2017-04-30) and
-    // Android in API 30 (2020-09-08).
-    if (errno == ENOSYS) {
+    if (androidApiLevel == -1 || androidApiLevel >= 30) {
+      val statx = alloc<statx>()
+      val result = syscall(
+        __NR_statx.convert(),
+        AT_FDCWD,
+        path.toString(),
+        AT_SYMLINK_NOFOLLOW,
+        STATX_BASIC_STATS or STATX_BTIME,
+        statx.ptr,
+      ).convert<Int>()
+      if (result == 0) {
+        return FileMetadata(
+          isRegularFile = statx.stx_mode.toInt() and S_IFMT == S_IFREG,
+          isDirectory = statx.stx_mode.toInt() and S_IFMT == S_IFDIR,
+          symlinkTarget = symlinkTarget(statx.stx_mode.toInt(), path),
+          size = statx.stx_size.toLong(),
+          createdAtMillis = when {
+            statx.stx_mask and STATX_BTIME != 0U -> statx.stx_btime.epochMillis
+            else -> statx.stx_mtime.epochMillis
+          },
+          lastModifiedAtMillis = statx.stx_mtime.epochMillis,
+          lastAccessedAtMillis = statx.stx_atime.epochMillis,
+        )
+      }
+    } else if (errno == ENOSYS || androidApiLevel < 30) {
+      // Recover if statx() isn't available. It first appeared in Linux in 4.11 (2017-04-30) and
+      // Android in API 30 (2020-09-08).
       val stat = alloc<stat>()
       if (lstat(path.toString(), stat.ptr) == 0) {
         return FileMetadata(
@@ -93,3 +95,8 @@ internal actual fun PosixFileSystem.variantMetadataOrNull(path: Path): FileMetad
 @OptIn(UnsafeNumber::class)
 internal val statx_timestamp.epochMillis: Long
   get() = tv_sec * 1000L + tv_nsec.toLong() / 1_000_000L
+
+/**
+ * Get Android Device API level. Returns -1 on non-Android platforms.
+ */
+expect fun getAndroidDeviceApiLevel(): Int
