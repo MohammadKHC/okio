@@ -37,6 +37,7 @@ import okio.internal.commonDecodeHex
 import okio.internal.commonEncodeUtf8
 import okio.internal.commonEndsWith
 import okio.internal.commonEquals
+import okio.internal.commonEqualsConstantTime
 import okio.internal.commonGetByte
 import okio.internal.commonGetSize
 import okio.internal.commonHashCode
@@ -55,6 +56,7 @@ import okio.internal.commonToByteString
 import okio.internal.commonToString
 import okio.internal.commonUtf8
 import okio.internal.commonWrite
+import okio.internal.decodeHexIgnoreWhitespace
 
 actual open class ByteString
 internal actual constructor(
@@ -68,7 +70,8 @@ internal actual constructor(
   /** Constructs a new `String` by decoding the bytes using `charset`.  */
   open fun string(charset: Charset) = String(data, charset)
 
-  actual open fun base64() = commonBase64()
+  @JvmOverloads
+  actual open fun base64(includePadding: Boolean) = commonBase64(includePadding = includePadding)
 
   actual fun md5() = digest("MD5")
 
@@ -105,7 +108,8 @@ internal actual constructor(
     }
   }
 
-  actual open fun base64Url() = commonBase64Url()
+  @JvmOverloads
+  actual open fun base64Url(includePadding: Boolean) = commonBase64Url(includePadding = includePadding)
 
   actual open fun hex(): String = commonHex()
 
@@ -187,6 +191,9 @@ internal actual constructor(
 
   actual override fun equals(other: Any?) = commonEquals(other)
 
+  actual fun equals(other: ByteString, constantTime: Boolean) =
+    if (constantTime) commonEqualsConstantTime(other) else this == other
+
   actual override fun hashCode() = commonHashCode()
 
   actual override fun compareTo(other: ByteString) = commonCompareTo(other)
@@ -260,6 +267,12 @@ internal actual constructor(
 
     @JvmStatic
     actual fun String.decodeHex() = commonDecodeHex()
+
+    @JvmStatic
+    actual fun String.decodeHex(ignoreWhitespace: Boolean) = when {
+      ignoreWhitespace -> decodeHexIgnoreWhitespace()
+      else -> commonDecodeHex()
+    }
 
     /**
      * Reads `count` bytes from this [InputStream] and returns the result.

@@ -45,13 +45,13 @@ internal constructor(data: ByteArray) : Comparable<ByteString> {
   fun utf8(): String
 
   /**
-   * Returns this byte string encoded as [Base64](http://www.ietf.org/rfc/rfc2045.txt). In violation
+   * Returns this byte string encoded as [Base64](https://www.ietf.org/rfc/rfc2045.txt). In violation
    * of the RFC, the returned string does not wrap lines at 76 columns.
    */
-  fun base64(): String
+  fun base64(includePadding: Boolean = true): String
 
-  /** Returns this byte string encoded as [URL-safe Base64](http://www.ietf.org/rfc/rfc4648.txt). */
-  fun base64Url(): String
+  /** Returns this byte string encoded as [URL-safe Base64](https://www.ietf.org/rfc/rfc4648.txt). */
+  fun base64Url(includePadding: Boolean = true): String
 
   /** Returns this byte string encoded in hexadecimal. */
   fun hex(): String
@@ -97,7 +97,7 @@ internal constructor(data: ByteArray) : Comparable<ByteString> {
    * `beginIndex` and ends at the specified `endIndex`. Returns this byte string if `beginIndex` is
    * 0 and `endIndex` is the length of this byte string.
    */
-  fun substring(beginIndex: Int = 0, endIndex: Int = DEFAULT__ByteString_size): ByteString
+  fun substring(beginIndex: Int = 0, endIndex: Int = size): ByteString
 
   /**
    * Returns a byte string equal to this byte string, but with the bytes 'a' through 'z' replaced
@@ -164,11 +164,20 @@ internal constructor(data: ByteArray) : Comparable<ByteString> {
   @JvmOverloads
   fun indexOf(other: ByteArray, fromIndex: Int = 0): Int
 
-  fun lastIndexOf(other: ByteString, fromIndex: Int = DEFAULT__ByteString_size): Int
+  fun lastIndexOf(other: ByteString, fromIndex: Int = size): Int
 
-  fun lastIndexOf(other: ByteArray, fromIndex: Int = DEFAULT__ByteString_size): Int
+  fun lastIndexOf(other: ByteArray, fromIndex: Int = size): Int
 
   override fun equals(other: Any?): Boolean
+
+  /**
+   * Returns true if the bytes of this equal the bytes of `other`. If [constantTime] is true this
+   * always inspects every byte and does not short-circuit on the first mismatch, so its running
+   * time does not depend on where the byte strings differ. Use that for timing-safe comparison of
+   * secrets like hashes or message authentication codes. If [constantTime] is false this behaves
+   * like [equals] and may return as soon as a mismatch is found.
+   */
+  fun equals(other: ByteString, constantTime: Boolean): Boolean
 
   override fun hashCode(): Int
 
@@ -193,7 +202,7 @@ internal constructor(data: ByteArray) : Comparable<ByteString> {
      * starting at `offset`.
      */
     @JvmStatic
-    fun ByteArray.toByteString(offset: Int = 0, byteCount: Int = DEFAULT__ByteString_size): ByteString
+    fun ByteArray.toByteString(offset: Int = 0, byteCount: Int = size): ByteString
 
     /** Returns a new byte string containing the `UTF-8` bytes of this [String]. */
     @JvmStatic
@@ -209,5 +218,14 @@ internal constructor(data: ByteArray) : Comparable<ByteString> {
     /** Decodes the hex-encoded bytes and returns their value a byte string. */
     @JvmStatic
     fun String.decodeHex(): ByteString
+
+    /**
+     * Decodes the hex-encoded bytes and returns their value a byte string.
+     *
+     * @param ignoreWhitespace true to skip ASCII whitespace characters (space, tab, carriage
+     *   return and line feed). Otherwise, this throws if whitespace is present.
+     */
+    @JvmStatic
+    fun String.decodeHex(ignoreWhitespace: Boolean): ByteString
   }
 }

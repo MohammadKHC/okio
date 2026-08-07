@@ -284,31 +284,33 @@ abstract class AbstractFileSystemTest(
   fun listOnRelativePathWhichIsNotDotReturnsRelativePaths() {
     if (isNodeJsFileSystem) return
 
+    val apiDir = "api".toPath()
+    val expectedFiles = listOf(
+      apiDir / "okio.api",
+      apiDir / "okio.klib.api",
+    )
+
     // Make sure there's always at least one file so our assertion is useful. We copy the first 2
     // entries of the real working directory of the JVM to validate the results on all environment.
-    if (
-      fileSystem.isFakeFileSystem ||
+    val isFakeFileSystem = fileSystem.isFakeFileSystem ||
       fileSystem is ForwardingFileSystem && fileSystem.delegate.isFakeFileSystem
-    ) {
+    if (isFakeFileSystem) {
       val workingDirectory = "/directory".toPath()
       fileSystem.createDirectory(workingDirectory)
       fileSystem.workingDirectory = workingDirectory
-      val apiDir = "api".toPath()
+    }
+    if (isFakeFileSystem || isWrappingJimFileSystem || isWasiFileSystem) {
       fileSystem.createDirectory(apiDir)
-      fileSystem.write(apiDir / "okio.api".toPath()) {
-        writeUtf8("hello, world!")
-      }
-    } else if (isWrappingJimFileSystem || isWasiFileSystem) {
-      val apiDir = "api".toPath()
-      fileSystem.createDirectory(apiDir)
-      fileSystem.write(apiDir / "okio.api".toPath()) {
-        writeUtf8("hello, world!")
+      for (path in expectedFiles) {
+        fileSystem.write(path) {
+          writeUtf8("hello, world!")
+        }
       }
     }
 
     try {
       assertEquals(
-        listOf("api".toPath() / "okio.api".toPath()),
+        expectedFiles,
         fileSystem.list("api".toPath()),
         // List some entries to help debugging.
         fileSystem.listRecursively(".".toPath()).take(5).toList().joinToString(),
@@ -335,31 +337,33 @@ abstract class AbstractFileSystemTest(
   fun listOrNullOnRelativePathWhichIsNotDotReturnsRelativePaths() {
     if (isNodeJsFileSystem) return
 
+    val apiDir = "api".toPath()
+    val expectedFiles = listOf(
+      apiDir / "okio.api",
+      apiDir / "okio.klib.api",
+    )
+
     // Make sure there's always at least one file so our assertion is useful. We copy the first 2
     // entries of the real working directory of the JVM to validate the results on all environment.
-    if (
-      fileSystem.isFakeFileSystem ||
+    val isFakeFileSystem = fileSystem.isFakeFileSystem ||
       fileSystem is ForwardingFileSystem && fileSystem.delegate.isFakeFileSystem
-    ) {
+    if (isFakeFileSystem) {
       val workingDirectory = "/directory".toPath()
       fileSystem.createDirectory(workingDirectory)
       fileSystem.workingDirectory = workingDirectory
-      val apiDir = "api".toPath()
+    }
+    if (isFakeFileSystem || isWrappingJimFileSystem) {
       fileSystem.createDirectory(apiDir)
-      fileSystem.write(apiDir / "okio.api".toPath()) {
-        writeUtf8("hello, world!")
-      }
-    } else if (isWrappingJimFileSystem) {
-      val apiDir = "api".toPath()
-      fileSystem.createDirectory(apiDir)
-      fileSystem.write(apiDir / "okio.api".toPath()) {
-        writeUtf8("hello, world!")
+      for (path in expectedFiles) {
+        fileSystem.write(path) {
+          writeUtf8("hello, world!")
+        }
       }
     }
 
     try {
       assertEquals(
-        listOf("api".toPath() / "okio.api".toPath()),
+        expectedFiles,
         fileSystem.listOrNull("api".toPath()),
         // List some entries to help debugging.
         fileSystem.listRecursively(".".toPath()).take(5).toList().joinToString(),
@@ -1469,6 +1473,27 @@ abstract class AbstractFileSystemTest(
     assertInRange(metadata.createdAt, minTime, maxTime)
     assertInRange(metadata.lastModifiedAt, minTime, maxTime)
     assertInRange(metadata.lastAccessedAt, minTime, maxTime)
+  }
+
+  /** https://github.com/lysine-dev/okio/issues/1755 */
+  @Test
+  fun fileMetadataTimestampsAreDistinct() {
+    if (fileSystem.isFakeFileSystem) return
+    if (fileSystem is ForwardingFileSystem) return
+    if (isJimFileSystem()) return
+    if (!fileSystemHasGoodMetadata) return
+
+    // These timestamps are hardcoded in the following Gradle tasks:
+    //   :okio-testing-support:touchAbstractFileSystemTestFilesCreatedAt
+    //   :okio-testing-support:touchAbstractFileSystemTestFilesModifiedAt
+    val createdAt = fromIso8601String("2026-01-01T01:01:01Z")
+    val lastModifiedAt = fromIso8601String("2026-02-02T02:02:02Z")
+
+    val path = okioRoot / "okio-testing-support" / "build/AbstractFileSystemTestFiles/metadata.txt"
+    val metadata = fileSystem.metadata(path)
+    assertTrue(metadata.isRegularFile)
+    assertInRange(metadata.createdAt, createdAt, createdAt)
+    assertInRange(metadata.lastModifiedAt, lastModifiedAt, lastModifiedAt)
   }
 
   @Test
